@@ -1,13 +1,13 @@
 package net.radiance.ntmbwp;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 public class CommonConfig {
-    public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
-    public static final ForgeConfigSpec SPEC;
+    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    public static final ModConfigSpec SPEC;
 
     // Example setting
-    public static final ForgeConfigSpec.IntValue BLOCKS_PER_TICK;
+    public static final ModConfigSpec.IntValue BLOCKS_PER_TICK;
 
     static {
         BUILDER.push("NTM Construction Wand Settings");

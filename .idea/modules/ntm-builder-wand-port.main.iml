@@ -13,10 +13,9 @@
     </facet>
   </component>
   <component name="McpModuleSettings">
-    <option name="mappingFile" value="$MODULE_DIR$/../../build/createMcpToSrg/output.tsrg" />
-    <option name="mcpVersion" value="official_1.20.1" />
-    <option name="minecraftVersion" value="1.20.1" />
-    <option name="platformVersion" value="47.4.6" />
+    <option name="mappingFile" value="$MODULE_DIR$/../../build/neoForm/neoFormJoined1.21.1-20240808.144430/steps/mergeMappings/outputs.tsrg" />
+    <option name="minecraftVersion" value="1.21.1" />
+    <option name="platformVersion" value="21.1.230" />
     <option name="srgType" value="TSRG" />
   </component>
 </module>
