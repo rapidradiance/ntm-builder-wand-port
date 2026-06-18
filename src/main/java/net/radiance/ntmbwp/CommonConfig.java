@@ -14,8 +14,8 @@ public class CommonConfig {
 
         BLOCKS_PER_TICK = BUILDER
                 .comment("Number of blocks placed per tick, keep it between 300 and 1000 for best results")
-                .comment("Default Value: 1000")
-                .defineInRange("blocksPerTick", 1000, 1, 100000);
+                .comment("Default Value: 10000")
+                .defineInRange("blocksPerTick", 10000, 1, 100000);
 
         BUILDER.pop();
         SPEC = BUILDER.build();
