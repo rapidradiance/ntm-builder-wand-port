@@ -13,7 +13,7 @@ public class CommonConfig {
         BUILDER.push("NTM Construction Wand Settings");
 
         BLOCKS_PER_TICK = BUILDER
-                .comment("Number of blocks placed per tick, keep it between 300 and 1000 for best results")
+                .comment("Number of blocks placed per tick, keep it between 300 and 10000 for best results")
                 .comment("Default Value: 10000")
                 .defineInRange("blocksPerTick", 10000, 1, 100000);
 
