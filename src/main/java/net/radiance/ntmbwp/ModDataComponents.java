@@ -7,6 +7,7 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.radiance.ntmbwp.item.Wand;
 
 public class ModDataComponents {
     public static final DeferredRegister<DataComponentType<?>> DATA_COMPONENT_TYPES =
@@ -17,6 +18,13 @@ public class ModDataComponents {
                     DataComponentType.<Boolean>builder()
                             .persistent(Codec.BOOL)           // save to disk
                             .networkSynchronized(ByteBufCodecs.BOOL) // sync to client
+                            .build()
+            );
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Wand.WandState>> WAND_STATE =
+            DATA_COMPONENT_TYPES.register("wand_state", () ->
+                    DataComponentType.<Wand.WandState>builder()
+                            .persistent(Wand.WandState.CODEC)
+                            .networkSynchronized(Wand.WandState.STREAM_CODEC)
                             .build()
             );
 

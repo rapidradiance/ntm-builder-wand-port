@@ -1,10 +1,16 @@
 package net.radiance.ntmbwp.item;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -25,24 +31,61 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.radiance.ntmbwp.CommonConfig;
 import net.radiance.ntmbwp.ModDataComponents;
 
 import java.util.*;
 
 import static net.radiance.ntmbwp.Ntmbwp.MOD_ID;
 
-// Per-player wand state (replaces NBT on the stack) 
-record WandState(BlockPos startPos, Block targetBlock, BlockState targetState) {
-    // startPos may be null (not yet set)
-}
-
 @SuppressWarnings("removal")
 @EventBusSubscriber(modid = MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public class Wand extends Item {
+    // check classic mode setting
+    boolean classic = CommonConfig.CLASSIC_MODE.get();
 
-    // Keyed by player UUID
-    private static final Map<UUID, BlockPos>   START_POSITIONS = new HashMap<>();
-    private static final Map<UUID, BlockState> TARGET_STATES   = new HashMap<>();
+    // Record wandstate in a data component, ive probably done lots wrong here but it works so...
+    // if it tells you to turn this into its own file, its lying that breaks everything and i have no idea why just leave it like this please
+    public record WandState(Optional<BlockPos> startPos, Block targetBlock, BlockState targetState) {
+
+        public static final Codec<WandState> CODEC = RecordCodecBuilder.create(instance ->
+                instance.group(
+                        BlockPos.CODEC
+                                .optionalFieldOf("start_pos")
+                                .forGetter(WandState::startPos),
+                        BuiltInRegistries.BLOCK.byNameCodec()
+                                .fieldOf("target_block")
+                                .forGetter(WandState::targetBlock),
+                        BlockState.CODEC
+                                .fieldOf("target_state")
+                                .forGetter(WandState::targetState)
+                ).apply(instance, WandState::new)
+        );
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, WandState> STREAM_CODEC =
+                StreamCodec.composite(
+                        ByteBufCodecs.optional(BlockPos.STREAM_CODEC.cast()),              WandState::startPos,
+                        ByteBufCodecs.registry(Registries.BLOCK),                          WandState::targetBlock,
+                        ByteBufCodecs.VAR_INT.map(Block::stateById, Block::getId).cast(),  WandState::targetState,
+                        WandState::new
+                );
+
+        public static WandState of(Block block, BlockState state) {
+            return new WandState(Optional.empty(), block, state);
+        }
+
+        public WandState withStartPos(BlockPos pos) {
+            return new WandState(Optional.of(pos), this.targetBlock(), this.targetState());
+        }
+
+        public WandState clearStartPos() {
+            return new WandState(Optional.empty(), this.targetBlock(), this.targetState());
+        }
+
+        public boolean hasStartPos() {
+            return startPos.isPresent();
+        }
+    }
 
     private static final Queue<FillTask> FILL_TASKS = new LinkedList<>();
 
@@ -118,29 +161,32 @@ public class Wand extends Item {
         BlockPos pos  = context.getClickedPos();
         Player player = context.getPlayer();
         if (player == null || level.isClientSide) return InteractionResult.PASS;
-
-        UUID uid = player.getUUID();
+        ItemStack stack = player.getItemInHand(InteractionHand.MAIN_HAND);
+        WandState currentstate = stack.get(ModDataComponents.WAND_STATE);
 
         if (player.isShiftKeyDown()) {
-            // Store clicked block's state as the fill target
-            BlockState clicked = level.getBlockState(pos);
-            TARGET_STATES.put(uid, clicked);
+            BlockState clickedState = level.getBlockState(pos);
+            stack.set(ModDataComponents.WAND_STATE, WandState.of(clickedState.getBlock(), clickedState));
 
             // 1.21.1 registry lookup
-            ResourceLocation key = BuiltInRegistries.BLOCK.getKey(clicked.getBlock());
+            ResourceLocation key = BuiltInRegistries.BLOCK.getKey(clickedState.getBlock());
             player.displayClientMessage(
                     Component.literal("Set block: " + key), false);
             return InteractionResult.SUCCESS;
         }
 
-        // First click → store start pos; second click → fill
-        if (!START_POSITIONS.containsKey(uid)) {
-            START_POSITIONS.put(uid, pos);
+        // First click will store the start pos and the second click will fill the selected areo
+        if (currentstate != null && !currentstate.hasStartPos()) {
+            stack.set(ModDataComponents.WAND_STATE, currentstate.withStartPos(pos));
+            if (classic) { stack.set(ModDataComponents.GLOWING, true); }
             player.displayClientMessage(Component.literal("Position set!"), false);
-        } else {
-            BlockPos startPos = START_POSITIONS.remove(uid);
-            BlockState target = TARGET_STATES.getOrDefault(uid, Blocks.STONE.defaultBlockState());
+        }
+        if (currentstate != null && currentstate.hasStartPos()) {
+            BlockPos startPos = currentstate.startPos().get();
+            BlockState target = currentstate.targetState();
             scheduleFill(level, startPos, pos, target);
+            stack.set(ModDataComponents.WAND_STATE, currentstate.clearStartPos());
+            if (classic) { stack.set(ModDataComponents.GLOWING, false); }
             player.displayClientMessage(Component.literal("Selection Filled!"), false);
         }
 
@@ -156,15 +202,10 @@ public class Wand extends Item {
 
         if (hand != InteractionHand.MAIN_HAND) return InteractionResultHolder.pass(stack);
 
-        if (!level.isClientSide() && !player.isShiftKeyDown() && hit.getType() != HitResult.Type.MISS) {
-            boolean currentlyGlowing = stack.getOrDefault(ModDataComponents.GLOWING, false);
-            stack.set(ModDataComponents.GLOWING, !currentlyGlowing);
-        }
-
         if (hit.getType() != HitResult.Type.MISS) return InteractionResultHolder.pass(stack);
 
         if (player.isShiftKeyDown() && !level.isClientSide) {
-            TARGET_STATES.put(player.getUUID(), Blocks.AIR.defaultBlockState());
+            stack.set(ModDataComponents.WAND_STATE, WandState.of(Blocks.AIR, Blocks.AIR.defaultBlockState()));
             player.displayClientMessage(Component.literal("Set block: minecraft:air"), false);
         }
 
