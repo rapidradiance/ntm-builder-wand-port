@@ -22,7 +22,7 @@ public class Ntmbwp {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public Ntmbwp(ModContainer container, IEventBus modEventBus) {
-        container.registerConfig(ModConfig.Type.COMMON, net.radiance.ntmbwp.CommonConfig.SPEC);
+        container.registerConfig(ModConfig.Type.COMMON, net.radiance.ntmbwp.CommonConfig.SPEC, "ntmbwp-common.toml");
         ModDataComponents.register(modEventBus);
         ModItems.register(container.getEventBus());
     }

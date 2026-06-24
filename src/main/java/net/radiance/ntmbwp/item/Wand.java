@@ -2,6 +2,7 @@ package net.radiance.ntmbwp.item;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.netty.buffer.ByteBuf;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
@@ -11,6 +12,7 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -30,9 +32,15 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import net.radiance.ntmbwp.CommonConfig;
 import net.radiance.ntmbwp.ModDataComponents;
+import net.radiance.ntmbwp.Ntmbwp;
 
 import java.util.*;
 
@@ -41,8 +49,6 @@ import static net.radiance.ntmbwp.Ntmbwp.MOD_ID;
 @SuppressWarnings("removal")
 @EventBusSubscriber(modid = MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public class Wand extends Item {
-    // check classic mode setting
-    boolean classic = CommonConfig.CLASSIC_MODE.get();
 
     // Record wandstate in a data component, ive probably done lots wrong here but it works so...
     // if it tells you to turn this into its own file, its lying that breaks everything and i have no idea why just leave it like this please
@@ -153,10 +159,15 @@ public class Wand extends Item {
         }
     }
 
+
+
+
     // useOn (right-click on block) 
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
+        // check classic mode setting
+        boolean classic = CommonConfig.CLASSIC_MODE.get();
         Level  level  = context.getLevel();
         BlockPos pos  = context.getClickedPos();
         Player player = context.getPlayer();
@@ -178,7 +189,7 @@ public class Wand extends Item {
         // First click will store the start pos and the second click will fill the selected areo
         if (currentstate != null && !currentstate.hasStartPos()) {
             stack.set(ModDataComponents.WAND_STATE, currentstate.withStartPos(pos));
-            if (classic) { stack.set(ModDataComponents.GLOWING, true); }
+            if (!classic) { stack.set(ModDataComponents.GLOWING, true); }
             player.displayClientMessage(Component.literal("Position set!"), false);
         }
         if (currentstate != null && currentstate.hasStartPos()) {
@@ -186,7 +197,7 @@ public class Wand extends Item {
             BlockState target = currentstate.targetState();
             scheduleFill(level, startPos, pos, target);
             stack.set(ModDataComponents.WAND_STATE, currentstate.clearStartPos());
-            if (classic) { stack.set(ModDataComponents.GLOWING, false); }
+            if (!classic) { stack.set(ModDataComponents.GLOWING, false); }
             player.displayClientMessage(Component.literal("Selection Filled!"), false);
         }
 
@@ -197,10 +208,11 @@ public class Wand extends Item {
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
-        ItemStack stack = player.getItemInHand(hand);
         HitResult hit = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
-
+        ItemStack stack = player.getItemInHand(InteractionHand.MAIN_HAND);
         if (hand != InteractionHand.MAIN_HAND) return InteractionResultHolder.pass(stack);
+
+        if (player.isSecondaryUseActive())
 
         if (hit.getType() != HitResult.Type.MISS) return InteractionResultHolder.pass(stack);
 
@@ -228,4 +240,63 @@ public class Wand extends Item {
         int blocksPerTick = net.radiance.ntmbwp.CommonConfig.BLOCKS_PER_TICK.get();
         FILL_TASKS.add(new FillTask(level, allPositions, stateToPlace, blocksPerTick));
     }
+
+    // left click stuff ig
+    public void onLeftClick(Player player, Level level) {
+        if (level.isClientSide()) return;
+        // check classic mode setting
+        boolean classic = CommonConfig.CLASSIC_MODE.get();
+        if (classic) return;
+        ItemStack stack = player.getItemInHand(InteractionHand.MAIN_HAND);
+        WandState currentstate = stack.get(ModDataComponents.WAND_STATE);
+        if (!currentstate.hasStartPos()) return; // makes sure it only works if the start pos is actually set
+        stack.set(ModDataComponents.WAND_STATE, currentstate.clearStartPos());
+        stack.set(ModDataComponents.GLOWING, false);
+        player.displayClientMessage(Component.literal("Selection Reset!"), false);
+    }
+
 }
+// ya so for left click, its a bitch, fuck you minecrarft, neoforge, java, etc
+// also yes, sending a whole ass packet is needed, because left click empty is fucking special
+@EventBusSubscriber
+ class ItemEvents {
+    @SubscribeEvent
+    public static void register(final RegisterPayloadHandlersEvent event) {
+        final PayloadRegistrar registrar = event.registrar("1");
+        registrar.playToServer(
+                WandLeftClickPayload.TYPE,
+                WandLeftClickPayload.STREAM_CODEC,
+                WandLeftClickPayload::handle
+        );
+    }
+    public record WandLeftClickPayload() implements CustomPacketPayload {
+        public static final Type<WandLeftClickPayload> TYPE =
+                new Type<>(ResourceLocation.fromNamespaceAndPath(Ntmbwp.MOD_ID, "wand_left_click"));
+        public static final StreamCodec<ByteBuf, WandLeftClickPayload> STREAM_CODEC =
+                StreamCodec.unit(new WandLeftClickPayload());
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() { return TYPE; }
+
+        public static void handle(WandLeftClickPayload payload, IPayloadContext context) {
+            Player player = context.player();
+            if (player.getMainHandItem().getItem() instanceof Wand item)
+                item.onLeftClick(player, player.level());
+        }
+    }
+
+    private static void tryDelegate(Player player) {
+        if (player.getMainHandItem().getItem() instanceof Wand item)
+            item.onLeftClick(player, player.level());
+    }
+
+    @SubscribeEvent
+    public static void onBlock(PlayerInteractEvent.LeftClickBlock e) { tryDelegate(e.getEntity()); }
+
+    @SubscribeEvent
+    public static void onEmpty(PlayerInteractEvent.LeftClickEmpty e) {
+        if (e.getEntity().level().isClientSide()) {
+            PacketDistributor.sendToServer(new WandLeftClickPayload());
+        }
+    }
+ }
