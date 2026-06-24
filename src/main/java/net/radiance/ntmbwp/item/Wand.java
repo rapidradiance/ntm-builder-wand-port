@@ -149,9 +149,11 @@ public class Wand extends Item {
     public void appendHoverText(ItemStack stack, TooltipContext context,
                                 List<Component> tooltip, TooltipFlag flag) {
         super.appendHoverText(stack, context, tooltip, flag);
+        boolean classic = CommonConfig.CLASSIC_MODE.get();
         if (Screen.hasShiftDown()) {
             tooltip.add(Component.literal("Set positions with right click,").withStyle(ChatFormatting.GRAY));
             tooltip.add(Component.literal("Set block with shift-right click!").withStyle(ChatFormatting.GRAY));
+            if (!classic){tooltip.add(Component.literal("Reset Selection by left clicking in air").withStyle(ChatFormatting.GRAY));}
         } else {
             tooltip.add(Component.literal("Creative-only item").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
             tooltip.add(Component.literal("\"Destruction brings creation\"").withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
