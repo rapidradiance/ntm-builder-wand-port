@@ -25,6 +25,8 @@ import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.radiance.ntmbwp.ModDataComponents;
+
 import java.util.*;
 
 import static net.radiance.ntmbwp.Ntmbwp.MOD_ID;
@@ -46,6 +48,12 @@ public class Wand extends Item {
 
     public Wand(Properties props) {
         super(props);
+    }
+
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        // Show enchant glow when true
+        return stack.getOrDefault(ModDataComponents.GLOWING, false);
     }
 
     // Tick handler 
@@ -144,9 +152,15 @@ public class Wand extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
+        HitResult hit = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
+
         if (hand != InteractionHand.MAIN_HAND) return InteractionResultHolder.pass(stack);
 
-        HitResult hit = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
+        if (!level.isClientSide() && !player.isShiftKeyDown() && hit.getType() != HitResult.Type.MISS) {
+            boolean currentlyGlowing = stack.getOrDefault(ModDataComponents.GLOWING, false);
+            stack.set(ModDataComponents.GLOWING, !currentlyGlowing);
+        }
+
         if (hit.getType() != HitResult.Type.MISS) return InteractionResultHolder.pass(stack);
 
         if (player.isShiftKeyDown() && !level.isClientSide) {
