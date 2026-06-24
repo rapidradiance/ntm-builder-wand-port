@@ -290,8 +290,8 @@ public class Wand extends Item {
             item.onLeftClick(player, player.level());
     }
 
-    @SubscribeEvent
-    public static void onBlock(PlayerInteractEvent.LeftClickBlock e) { tryDelegate(e.getEntity()); }
+    //@SubscribeEvent
+    //public static void onBlock(PlayerInteractEvent.LeftClickBlock e) { tryDelegate(e.getEntity()); }
 
     @SubscribeEvent
     public static void onEmpty(PlayerInteractEvent.LeftClickEmpty e) {
