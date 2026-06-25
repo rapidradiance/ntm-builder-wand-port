@@ -197,10 +197,9 @@ public class Wand extends Item {
         if (currentstate != null && currentstate.hasStartPos()) {
             BlockPos startPos = currentstate.startPos().get();
             BlockState target = currentstate.targetState();
-            scheduleFill(level, startPos, pos, target);
             stack.set(ModDataComponents.WAND_STATE, currentstate.clearStartPos());
+            scheduleFill(level, startPos, pos, target, player);
             if (!classic) { stack.set(ModDataComponents.GLOWING, false); }
-            player.displayClientMessage(Component.literal("Selection Filled!"), false);
         }
 
         return InteractionResult.sidedSuccess(level.isClientSide);
@@ -228,7 +227,14 @@ public class Wand extends Item {
 
     // Fill scheduling 
 
-    private static void scheduleFill(Level level, BlockPos pos1, BlockPos pos2, BlockState stateToPlace) {
+    private static void scheduleFill(Level level, BlockPos pos1, BlockPos pos2, BlockState stateToPlace, Player player) {
+        long dx = Math.abs((long) pos2.getX() - pos1.getX());
+        long dy = Math.abs((long) pos2.getY() - pos1.getY());
+        long dz = Math.abs((long) pos2.getZ() - pos1.getZ());
+        if (dx > 500 || dz > 500 || dy > 384) {
+                player.displayClientMessage(Component.literal("Selected area is too large!"), false);
+                return;
+        }
         int minX = Math.min(pos1.getX(), pos2.getX()), maxX = Math.max(pos1.getX(), pos2.getX());
         int minY = Math.min(pos1.getY(), pos2.getY()), maxY = Math.max(pos1.getY(), pos2.getY());
         int minZ = Math.min(pos1.getZ(), pos2.getZ()), maxZ = Math.max(pos1.getZ(), pos2.getZ());
@@ -241,6 +247,7 @@ public class Wand extends Item {
 
         int blocksPerTick = net.radiance.ntmbwp.CommonConfig.BLOCKS_PER_TICK.get();
         FILL_TASKS.add(new FillTask(level, allPositions, stateToPlace, blocksPerTick));
+        player.displayClientMessage(Component.literal("Selection Filled!"), false);
     }
 
     // left click stuff ig
