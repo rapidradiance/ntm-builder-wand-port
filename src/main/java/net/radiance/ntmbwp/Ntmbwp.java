@@ -28,19 +28,5 @@ public class Ntmbwp {
 
     }
 
-    @EventBusSubscriber
-    @Mod(value = Ntmbwp.MOD_ID, dist = Dist.CLIENT)
-    public static class NtmbwpClient {
-        public NtmbwpClient(IEventBus modBus) {
-        }
 
-        @SubscribeEvent
-        public static void addCreative(BuildCreativeModeTabContentsEvent event) {
-            if (Minecraft.getInstance().options.operatorItemsTab().get()) {
-                if (event.getTabKey() == CreativeModeTabs.OP_BLOCKS) {
-                    event.accept(ModItems.WAND);
-                }
-            }
-        }
-    }
 }
