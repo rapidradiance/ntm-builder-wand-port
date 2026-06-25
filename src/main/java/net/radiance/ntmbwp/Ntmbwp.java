@@ -2,6 +2,8 @@ package net.radiance.ntmbwp;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -28,6 +30,7 @@ public class Ntmbwp {
     }
 
     @SubscribeEvent
+    @OnlyIn(Dist.CLIENT)
     public static void addCreative(BuildCreativeModeTabContentsEvent event) {
         if(Minecraft.getInstance().options.operatorItemsTab().get()){
             if(event.getTabKey() == CreativeModeTabs.OP_BLOCKS) {
